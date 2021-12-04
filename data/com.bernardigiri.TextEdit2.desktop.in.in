@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=TextEdit 2
-Comment=Write a GTK + Rust application
+Comment=Text Editor
 Type=Application
 Exec=textedit2
 Terminal=false

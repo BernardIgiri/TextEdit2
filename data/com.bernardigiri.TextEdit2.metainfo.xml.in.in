@@ -3,12 +3,11 @@
 <component type="desktop-application">
   <id>@app-id@</id>
   <metadata_license>CC0</metadata_license>
-  <!-- Insert your license of choice here -->
-  <!-- <project_license>MIT</project_license> -->
+  <project_license>MIT</project_license>
   <name>TextEdit 2</name>
-  <summary>Write a GTK + Rust application</summary>
+  <summary>Text Editor</summary>
   <description>
-    <p>A boilerplate template for GTK + Rust. It uses Meson as a build system and has flatpak support by default.</p>
+    <p>A Text Editor in GTK + Rust.</p>
   </description>
   <screenshots>
     <screenshot type="default">
@@ -16,8 +15,8 @@
       <caption>Main window</caption>
     </screenshot>
   </screenshots>
-  <url type="homepage">https://gitlab.gnome.org/bilelmoussaoui/textedit2</url>
-  <url type="bugtracker">https://gitlab.gnome.org/bilelmoussaoui/textedit2/issues</url>
+  <url type="homepage">https://github.com/BernardIgiri/TextEdit2</url>
+  <url type="bugtracker">https://github.com/BernardIgiri/TextEdit2/issues</url>
   <content_rating type="oars-1.0" />
   <releases>
     <release version="0.0.1" date="2019-07-11" />

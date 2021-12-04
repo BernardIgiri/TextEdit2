@@ -74,10 +74,7 @@ impl ExampleApplication {
         glib::Object::new(&[
             ("application-id", &Some(APP_ID)),
             ("flags", &gio::ApplicationFlags::empty()),
-            (
-                "resource-base-path",
-                &Some("/com/bernardigiri/TextEdit2/"),
-            ),
+            ("resource-base-path", &Some("/com/bernardigiri/TextEdit2/")),
         ])
         .expect("Application initialization failed...")
     }
@@ -123,13 +120,14 @@ impl ExampleApplication {
     }
 
     fn show_about_dialog(&self) {
+        let logo_file = gio::File::for_path("/com/bernardigiri/TextEdit2/ui/logo.svg");
+        let logo = gtk::IconPaintableBuilder::new().file(&logo_file).build();
         let dialog = gtk::AboutDialogBuilder::new()
             .program_name("TextEdit 2")
+            .logo(&logo)
             .logo_icon_name(APP_ID)
-            // Insert your license of choice here
-            // .license_type(gtk::License::MitX11)
-            // Insert your website here
-            // .website("https://gitlab.gnome.org/bilelmoussaoui/textedit2/")
+            .license_type(gtk::License::MitX11)
+            .website("https://github.com/BernardIgiri/TextEdit2")
             .version(VERSION)
             .transient_for(&self.main_window())
             .translator_credits(&gettext("translator-credits"))
