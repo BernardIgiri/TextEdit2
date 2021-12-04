@@ -1,0 +1,6 @@
+data/com.bernardigiri.TextEdit2.desktop.in.in
+data/com.bernardigiri.TextEdit2.gschema.xml.in
+data/com.bernardigiri.TextEdit2.metainfo.xml.in.in
+data/resources/ui/shortcuts.ui
+data/resources/ui/window.ui
+src/application.rs
