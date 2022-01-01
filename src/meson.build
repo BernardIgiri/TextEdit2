@@ -19,8 +19,11 @@ run_command(
 )
 
 rust_sources = files(
+  'actions.rs',
   'application.rs',
+  'application_model.rs',
   'config.rs',
+  'document.rs',
   'main.rs',
   'window.rs',
 )

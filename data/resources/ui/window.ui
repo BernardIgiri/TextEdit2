@@ -1,40 +1,75 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.39.0 -->
 <interface>
   <menu id="primary_menu">
     <section>
       <item>
-        <attribute name="label" translatable="yes">_Preferences</attribute>
-        <attribute name="action">app.preferences</attribute>
-      </item>
-      <item>
-        <attribute name="label" translatable="yes">_Keyboard Shortcuts</attribute>
+        <attribute name="label" translatable="yes">Keyboard Shortcuts</attribute>
         <attribute name="action">win.show-help-overlay</attribute>
       </item>
       <item>
-        <attribute name="label" translatable="yes">_About GTK Rust Template</attribute>
+        <attribute name="label" translatable="yes">Open</attribute>
+        <attribute name="action">app.open</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Save</attribute>
+        <attribute name="action">app.save</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Save As</attribute>
+        <attribute name="action">app.save-as</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">About</attribute>
         <attribute name="action">app.about</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Quit</attribute>
+        <attribute name="action">app.quit</attribute>
       </item>
     </section>
   </menu>
   <template class="ApplicationWindow" parent="GtkApplicationWindow">
     <property name="default-width">600</property>
-    <property name="default-height">400</property>
+    <property name="default-height">600</property>
     <child type="titlebar">
       <object class="GtkHeaderBar" id="headerbar">
+        <child>
+          <object class="GtkButton" id="open">
+            <property name="label" translatable="yes">Open</property>
+          </object>
+        </child>
         <child type="end">
           <object class="GtkMenuButton" id="appmenu_button">
             <property name="icon-name">open-menu-symbolic</property>
             <property name="menu-model">primary_menu</property>
           </object>
         </child>
+        <child type="end">
+          <object class="GtkButton" id="save">
+            <property name="label" translatable="yes">Save</property>
+          </object>
+        </child>
       </object>
     </child>
     <child>
-      <object class="GtkLabel" id="label">
-        <property name="label" translatable="yes">Hello world!</property>
-        <style>
-          <class name="title-header"/>
-        </style>
+      <object class="GtkScrolledWindow">
+        <property name="visible">True</property>
+        <child>
+          <object class="GtkViewport">
+            <property name="visible">True</property>
+            <child>
+              <object class="GtkTextView" id="body-text">
+                <property name="left-margin">3</property>
+                <property name="right-margin">3</property>
+                <property name="top-margin">3</property>
+                <property name="bottom-margin">3</property>
+                <property name="visible">True</property>
+                <property name="input-hints">GTK_INPUT_HINT_SPELLCHECK | GTK_INPUT_HINT_WORD_COMPLETION | GTK_INPUT_HINT_EMOJI | GTK_INPUT_HINT_NONE</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
   </template>

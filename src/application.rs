@@ -1,13 +1,18 @@
 use gettextrs::gettext;
 use log::{debug, info};
 
-use glib::clone;
+use glib::{clone, Continue, MainContext, PRIORITY_DEFAULT};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gdk, gio, glib};
 
-use crate::config::{APP_ID, PKGDATADIR, PROFILE, VERSION};
-use crate::window::ApplicationWindow;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use super::actions::Action::*;
+use super::application_model::ApplicationModel;
+use super::config::{APP_ID, PKGDATADIR, PROFILE, VERSION};
+use super::window::ApplicationWindow;
 
 mod imp {
     use super::*;
@@ -17,6 +22,7 @@ mod imp {
     #[derive(Debug, Default)]
     pub struct Application {
         pub window: OnceCell<WeakRef<ApplicationWindow>>,
+        pub model: Rc<RefCell<ApplicationModel>>,
     }
 
     #[glib::object_subclass]
@@ -44,7 +50,22 @@ mod imp {
                 .set(window.downgrade())
                 .expect("Window already set.");
 
+            let (tx, rx) = MainContext::channel(PRIORITY_DEFAULT);
+
+            let model_rc = app.model();
+            {
+                let local_m = model_rc.clone();
+                let mut model = local_m.borrow_mut();
+                model.transmit(tx);
+            }
+
             app.main_window().present();
+
+            rx.attach(None, move |action| {
+                let mut model = model_rc.borrow_mut();
+                model.update(action);
+                Continue(true)
+            });
         }
 
         fn startup(&self, app: &Self::Type) {
@@ -85,6 +106,11 @@ impl Application {
         .expect("Application initialization failed...")
     }
 
+    fn model(&self) -> Rc<RefCell<ApplicationModel>> {
+        let imp = imp::Application::from_instance(self);
+        imp.model.clone()
+    }
+
     fn main_window(&self) -> ApplicationWindow {
         let imp = imp::Application::from_instance(self);
         imp.window.get().unwrap().upgrade().unwrap()
@@ -92,20 +118,41 @@ impl Application {
 
     fn setup_gactions(&self) {
         // Quit
-        let action_quit = gio::SimpleAction::new("quit", None);
-        action_quit.connect_activate(clone!(@weak self as app => move |_, _| {
+        let action = gio::SimpleAction::new("quit", None);
+        action.connect_activate(clone!(@weak self as app => move |_, _| {
             // This is needed to trigger the delete event and saving the window state
             app.main_window().close();
             app.quit();
         }));
-        self.add_action(&action_quit);
+        self.add_action(&action);
 
         // About
-        let action_about = gio::SimpleAction::new("about", None);
-        action_about.connect_activate(clone!(@weak self as app => move |_, _| {
+        let action = gio::SimpleAction::new("about", None);
+        action.connect_activate(clone!(@weak self as app => move |_, _| {
             app.show_about_dialog();
         }));
-        self.add_action(&action_about);
+        self.add_action(&action);
+
+        // Save
+        let action = gio::SimpleAction::new("save", None);
+        action.connect_activate(clone!(@weak self as app => move |_, _| {
+            app.save_file();
+        }));
+        self.add_action(&action);
+
+        // Save As
+        let action = gio::SimpleAction::new("save-as", None);
+        action.connect_activate(clone!(@weak self as app => move |_, _| {
+            app.save_file_as();
+        }));
+        self.add_action(&action);
+
+        // Open
+        let action = gio::SimpleAction::new("open", None);
+        action.connect_activate(clone!(@weak self as app => move |_, _| {
+            app.open_file();
+        }));
+        self.add_action(&action);
     }
 
     // Sets up keyboard shortcuts
@@ -143,6 +190,77 @@ impl Application {
             .build();
 
         dialog.show();
+    }
+
+    fn save_file(&self) {
+        debug!("GtkApplication<Application>::save_file");
+        let model_rc = self.model();
+        let model = model_rc.borrow_mut();
+        let tx = self.model().borrow().connect();
+        match model.document().filepath() {
+            None => {
+                self.save_file_as();
+            }
+            Some(path) => {
+                tx.send(SaveFile(path)).ok();
+            }
+        }
+    }
+
+    fn save_file_as(&self) {
+        debug!("GtkApplication<Application>::save_file_as");
+        let file_chooser = gtk::FileChooserDialog::new(
+            Some(&gettext("Save As")),
+            Some(&self.main_window()),
+            gtk::FileChooserAction::Save,
+            &[
+                (&gettext("Save"), gtk::ResponseType::Ok),
+                (&gettext("Cancel"), gtk::ResponseType::Cancel),
+            ],
+        );
+
+        let tx = self.model().borrow().connect();
+
+        file_chooser.connect_response(
+            move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
+                if response == gtk::ResponseType::Ok {
+                    debug!("GtkApplication<Application>::open_file Ok");
+                    let file = d.file().expect("Couldn't get file");
+                    tx.send(SaveFile(file.path().unwrap())).ok();
+                }
+                d.close();
+            },
+        );
+
+        file_chooser.show();
+    }
+
+    fn open_file(&self) {
+        debug!("GtkApplication<Application>::open_file");
+        let file_chooser = gtk::FileChooserDialog::new(
+            Some(&gettext("Open File")),
+            Some(&self.main_window()),
+            gtk::FileChooserAction::Open,
+            &[
+                (&gettext("Open"), gtk::ResponseType::Ok),
+                (&gettext("Cancel"), gtk::ResponseType::Cancel),
+            ],
+        );
+
+        let tx = self.model().borrow().connect();
+
+        file_chooser.connect_response(
+            move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
+                if response == gtk::ResponseType::Ok {
+                    debug!("GtkApplication<Application>::open_file Ok");
+                    let file = d.file().expect("Couldn't get file");
+                    tx.send(OpenFile(file.path())).ok();
+                }
+                d.close();
+            },
+        );
+
+        file_chooser.show();
     }
 
     pub fn run(&self) {
