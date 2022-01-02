@@ -57,32 +57,40 @@
     <child type="titlebar">
       <object class="GtkHeaderBar" id="headerbar">
         <property name="title-widget">
-          <object class="GtkBox">
-            <property name="halign">center</property>
+          <object class="GtkGrid">
+            <property name="valign">center</property>
             <property name="hexpand">False</property>
-            <property name="orientation">horizontal</property>
-            <property name="spacing">0</property>
+            <property name="vexpand">True</property>
+            <property name="column-spacing">0</property>
+            <property name="row-spacing">0</property>
             <child>
               <object class="GtkLabel" id="title">
                 <property name="label" translatable="yes">TextEdit 2</property>
-                <property name="hexpand">False</property>
                 <property name="single-line-mode">True</property>
                 <property name="ellipsize">end</property>
+                <property name="hexpand">False</property>
                 <style>
                   <class name="title"/>
                 </style>
+                <layout>
+                  <property name="column">0</property>
+                  <property name="row">0</property>
+                </layout>
               </object>
             </child>
             <child>
               <object class="GtkLabel" id="modified">
                 <property name="label" translatable="no">*</property>
-                <property name="hexpand">False</property>
                 <property name="single-line-mode">True</property>
+                <property name="hexpand">False</property>
                 <property name="visible">False</property>
-                <property name="width-chars">1</property>
                 <style>
                   <class name="title"/>
                 </style>
+                <layout>
+                  <property name="column">1</property>
+                  <property name="row">0</property>
+                </layout>
               </object>
             </child>
           </object>
@@ -118,10 +126,10 @@
             <child>
               <object class="GtkTextView" id="bodytext">
                 <property name="can-focus">True</property>
-                <property name="left-margin">3</property>
-                <property name="right-margin">3</property>
-                <property name="top-margin">3</property>
-                <property name="bottom-margin">3</property>
+                <property name="margin-end">3</property>
+                <property name="margin-start">3</property>
+                <property name="margin-top">3</property>
+                <property name="margin-bottom">3</property>
                 <property name="visible">True</property>
                 <property name="input-hints">GTK_INPUT_HINT_SPELLCHECK | GTK_INPUT_HINT_WORD_COMPLETION | GTK_INPUT_HINT_EMOJI</property>
               </object>
