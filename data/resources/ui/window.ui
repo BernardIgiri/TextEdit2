@@ -4,9 +4,11 @@
   <menu id="primary_menu">
     <section>
       <item>
-        <attribute name="label" translatable="yes">Keyboard Shortcuts</attribute>
-        <attribute name="action">win.show-help-overlay</attribute>
+        <attribute name="label" translatable="yes">New</attribute>
+        <attribute name="action">app.new</attribute>
       </item>
+    </section>
+    <section>
       <item>
         <attribute name="label" translatable="yes">Open</attribute>
         <attribute name="action">app.open</attribute>
@@ -19,10 +21,28 @@
         <attribute name="label" translatable="yes">Save As</attribute>
         <attribute name="action">app.save-as</attribute>
       </item>
+    </section>
+    <section>
+      <item>
+        <attribute name="label" translatable="yes">Undo</attribute>
+        <attribute name="action">app.undo</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Redo</attribute>
+        <attribute name="action">app.redo</attribute>
+      </item>
+    </section>
+    <section>
+      <item>
+        <attribute name="label" translatable="yes">Keyboard Shortcuts</attribute>
+        <attribute name="action">win.show-help-overlay</attribute>
+      </item>
       <item>
         <attribute name="label" translatable="yes">About</attribute>
         <attribute name="action">app.about</attribute>
       </item>
+    </section>
+    <section>
       <item>
         <attribute name="label" translatable="yes">Quit</attribute>
         <attribute name="action">app.quit</attribute>
@@ -32,11 +52,14 @@
   <template class="ApplicationWindow" parent="GtkApplicationWindow">
     <property name="default-width">600</property>
     <property name="default-height">600</property>
+    <property name="width-request">425</property>
+    <property name="height-request">75</property>
     <child type="titlebar">
       <object class="GtkHeaderBar" id="headerbar">
         <child>
-          <object class="GtkButton" id="open">
+          <object class="GtkButton" id="open_button">
             <property name="label" translatable="yes">Open</property>
+            <property name="action-name">app.open</property>
           </object>
         </child>
         <child type="end">
@@ -46,28 +69,42 @@
           </object>
         </child>
         <child type="end">
-          <object class="GtkButton" id="save">
+          <object class="GtkButton" id="save_button">
             <property name="label" translatable="yes">Save</property>
+            <property name="action-name">app.save</property>
           </object>
         </child>
       </object>
     </child>
     <child>
-      <object class="GtkScrolledWindow">
-        <property name="visible">True</property>
+      <object class="GtkBox" id="top_container">
+        <property name="orientation">vertical</property>
         <child>
-          <object class="GtkViewport">
+          <object class="GtkScrolledWindow">
             <property name="visible">True</property>
+            <property name="hexpand">True</property>
+            <property name="vexpand">True</property>
             <child>
-              <object class="GtkTextView" id="body-text">
+              <object class="GtkTextView" id="bodytext">
+                <property name="can-focus">True</property>
                 <property name="left-margin">3</property>
                 <property name="right-margin">3</property>
                 <property name="top-margin">3</property>
                 <property name="bottom-margin">3</property>
                 <property name="visible">True</property>
-                <property name="input-hints">GTK_INPUT_HINT_SPELLCHECK | GTK_INPUT_HINT_WORD_COMPLETION | GTK_INPUT_HINT_EMOJI | GTK_INPUT_HINT_NONE</property>
+                <property name="input-hints">GTK_INPUT_HINT_SPELLCHECK | GTK_INPUT_HINT_WORD_COMPLETION | GTK_INPUT_HINT_EMOJI</property>
               </object>
             </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkLabel" id="status-bar">
+            <property name="visible">True</property>
+            <property name="hexpand">True</property>
+            <property name="vexpand">False</property>
+            <property name="can-focus">False</property>
+            <property name="halign">start</property>
+            <property name="height-request">20</property>
           </object>
         </child>
       </object>

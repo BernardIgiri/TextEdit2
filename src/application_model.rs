@@ -1,5 +1,5 @@
 use super::actions::Action;
-use super::actions::Action::{OpenFile, SaveFile};
+use super::actions::Action::*;
 use super::document::Document;
 use crate::glib::Sender;
 
@@ -25,20 +25,27 @@ impl ApplicationModel {
         self.tx = Some(tx);
     }
 
-    pub fn connect(&self) -> Sender<Action> {
-        self.tx
-            .as_ref()
-            .expect("Attempted to connect before initialized.")
-            .clone()
+    pub fn send(&self, action: Action) {
+        self.tx.as_ref().unwrap().send(action).ok();
     }
 
-    pub fn update(&mut self, action: Action) {
+    pub fn update(&mut self, action: Action) -> bool {
         match action {
-            OpenFile(path) => {
+            OpenFile(Some(path)) => {
                 self.document.open(path);
+                true
+            }
+            OpenFile(None) => {
+                self.document.reset();
+                true
             }
             SaveFile(path) => {
                 self.document.save(path);
+                false
+            }
+            DocumentChanged(value) => {
+                self.document.update(value.as_str());
+                false
             }
         }
     }

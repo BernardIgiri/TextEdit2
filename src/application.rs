@@ -9,20 +9,37 @@ use gtk::{gdk, gio, glib};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use super::actions::Action;
 use super::actions::Action::*;
 use super::application_model::ApplicationModel;
 use super::config::{APP_ID, PKGDATADIR, PROFILE, VERSION};
 use super::window::ApplicationWindow;
+use crate::glib::Sender;
 
 mod imp {
     use super::*;
     use glib::WeakRef;
     use once_cell::sync::OnceCell;
 
-    #[derive(Debug, Default)]
+    #[derive(Debug)]
     pub struct Application {
         pub window: OnceCell<WeakRef<ApplicationWindow>>,
         pub model: Rc<RefCell<ApplicationModel>>,
+        pub undo_action: gio::SimpleAction,
+        pub redo_action: gio::SimpleAction,
+    }
+
+    impl Default for Application {
+        fn default() -> Self {
+            let undo_action = gio::SimpleAction::new("undo", None);
+            let redo_action = gio::SimpleAction::new("redo", None);
+            Self {
+                window: OnceCell::default(),
+                model: Rc::default(),
+                undo_action,
+                redo_action,
+            }
+        }
     }
 
     #[glib::object_subclass]
@@ -56,14 +73,21 @@ mod imp {
             {
                 let local_m = model_rc.clone();
                 let mut model = local_m.borrow_mut();
-                model.transmit(tx);
+                model.transmit(tx.clone());
             }
+            app.transmit(tx);
 
             app.main_window().present();
+            let local_app = app.clone();
 
             rx.attach(None, move |action| {
-                let mut model = model_rc.borrow_mut();
-                model.update(action);
+                let update_view = {
+                    let mut model = model_rc.borrow_mut();
+                    model.update(action)
+                };
+                if update_view {
+                    local_app.update();
+                }
                 Continue(true)
             });
         }
@@ -104,6 +128,22 @@ impl Application {
             ("resource-base-path", &Some("/com/bernardigiri/TextEdit2/")),
         ])
         .expect("Application initialization failed...")
+    }
+
+    fn transmit(&self, tx: Sender<Action>) {
+        let window = self.main_window();
+        window.transmit(tx);
+    }
+
+    fn update(&self) {
+        debug!("GtkApplication<Application>::update");
+        let model_ref = self.model();
+        let model = model_ref.borrow();
+        let window = self.main_window();
+        window.update(&model);
+        let imp = imp::Application::from_instance(self);
+        imp.undo_action.set_enabled(window.can_undo());
+        imp.redo_action.set_enabled(window.can_redo());
     }
 
     fn model(&self) -> Rc<RefCell<ApplicationModel>> {
@@ -153,11 +193,41 @@ impl Application {
             app.open_file();
         }));
         self.add_action(&action);
+
+        // New
+        let action = gio::SimpleAction::new("new", None);
+        action.connect_activate(clone!(@weak self as app => move |_, _| {
+            app.new_file();
+        }));
+        self.add_action(&action);
+
+        // Toggle actions
+        {
+            let imp = imp::Application::from_instance(self);
+            // Undo
+            let action = &imp.undo_action;
+            action.connect_activate(clone!(@weak self as app => move |_, _| {
+                app.undo();
+            }));
+            self.add_action(action);
+
+            // Redo
+            let action = &imp.redo_action;
+            action.connect_activate(clone!(@weak self as app => move |_, _| {
+                app.redo();
+            }));
+            self.add_action(action);
+        }
     }
 
     // Sets up keyboard shortcuts
     fn setup_accels(&self) {
+        self.set_accels_for_action("app.new", &["<primary>n"]);
+        self.set_accels_for_action("app.open", &["<primary>o"]);
         self.set_accels_for_action("app.quit", &["<primary>q"]);
+        self.set_accels_for_action("app.redo", &["<primary><shift>z"]);
+        self.set_accels_for_action("app.save", &["<primary>s"]);
+        self.set_accels_for_action("app.undo", &["<primary>z"]);
     }
 
     fn setup_css(&self) {
@@ -196,13 +266,12 @@ impl Application {
         debug!("GtkApplication<Application>::save_file");
         let model_rc = self.model();
         let model = model_rc.borrow_mut();
-        let tx = self.model().borrow().connect();
         match model.document().filepath() {
             None => {
                 self.save_file_as();
             }
             Some(path) => {
-                tx.send(SaveFile(path)).ok();
+                model.send(SaveFile(path));
             }
         }
     }
@@ -219,14 +288,15 @@ impl Application {
             ],
         );
 
-        let tx = self.model().borrow().connect();
+        let model_rc = self.model();
 
         file_chooser.connect_response(
             move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
                 if response == gtk::ResponseType::Ok {
                     debug!("GtkApplication<Application>::open_file Ok");
                     let file = d.file().expect("Couldn't get file");
-                    tx.send(SaveFile(file.path().unwrap())).ok();
+                    let model = model_rc.borrow();
+                    model.send(SaveFile(file.path().unwrap()));
                 }
                 d.close();
             },
@@ -247,20 +317,38 @@ impl Application {
             ],
         );
 
-        let tx = self.model().borrow().connect();
+        let model_rc = self.model();
 
         file_chooser.connect_response(
             move |d: &gtk::FileChooserDialog, response: gtk::ResponseType| {
                 if response == gtk::ResponseType::Ok {
                     debug!("GtkApplication<Application>::open_file Ok");
                     let file = d.file().expect("Couldn't get file");
-                    tx.send(OpenFile(file.path())).ok();
+                    let model = model_rc.borrow();
+                    model.send(OpenFile(file.path()));
                 }
                 d.close();
             },
         );
 
         file_chooser.show();
+    }
+
+    fn new_file(&self) {
+        debug!("GtkApplication<Application>::new_file");
+        let model_rc = self.model();
+        let model = model_rc.borrow();
+        model.send(OpenFile(None));
+    }
+
+    fn undo(&self) {
+        debug!("GtkApplication<Application>::undo");
+        self.main_window().undo();
+    }
+
+    fn redo(&self) {
+        debug!("GtkApplication<Application>::redo");
+        self.main_window().redo();
     }
 
     pub fn run(&self) {

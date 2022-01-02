@@ -1,7 +1,13 @@
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib};
+use log::debug;
 
+use super::actions::Action;
+use super::actions::Action::DocumentChanged;
+use crate::glib::Sender;
+
+use super::application_model::ApplicationModel;
 use crate::application::Application;
 use crate::config::{APP_ID, PROFILE};
 
@@ -15,13 +21,22 @@ mod imp {
     pub struct ApplicationWindow {
         #[template_child]
         pub headerbar: TemplateChild<gtk::HeaderBar>,
+        #[template_child]
+        pub bodytext: TemplateChild<gtk::TextView>,
         pub settings: gio::Settings,
+        #[template_child]
+        pub save_button: TemplateChild<gtk::Button>,
+        #[template_child]
+        pub open_button: TemplateChild<gtk::Button>,
     }
 
     impl Default for ApplicationWindow {
         fn default() -> Self {
             Self {
                 headerbar: TemplateChild::default(),
+                bodytext: TemplateChild::default(),
+                save_button: TemplateChild::default(),
+                open_button: TemplateChild::default(),
                 settings: gio::Settings::new(APP_ID),
             }
         }
@@ -85,14 +100,14 @@ impl ApplicationWindow {
     }
 
     fn save_window_size(&self) -> Result<(), glib::BoolError> {
-        let self_ = imp::ApplicationWindow::from_instance(self);
+        let window = imp::ApplicationWindow::from_instance(self);
 
         let (width, height) = self.default_size();
 
-        self_.settings.set_int("window-width", width)?;
-        self_.settings.set_int("window-height", height)?;
+        window.settings.set_int("window-width", width)?;
+        window.settings.set_int("window-height", height)?;
 
-        self_
+        window
             .settings
             .set_boolean("is-maximized", self.is_maximized())?;
 
@@ -100,16 +115,55 @@ impl ApplicationWindow {
     }
 
     fn load_window_size(&self) {
-        let self_ = imp::ApplicationWindow::from_instance(self);
+        let window = imp::ApplicationWindow::from_instance(self);
 
-        let width = self_.settings.int("window-width");
-        let height = self_.settings.int("window-height");
-        let is_maximized = self_.settings.boolean("is-maximized");
+        let width = window.settings.int("window-width");
+        let height = window.settings.int("window-height");
+        let is_maximized = window.settings.boolean("is-maximized");
 
         self.set_default_size(width, height);
 
         if is_maximized {
             self.maximize();
         }
+    }
+
+    pub fn update(&self, model: &ApplicationModel) {
+        debug!("GtkApplicationWindow<Application>::update");
+        let window = imp::ApplicationWindow::from_instance(self);
+        window
+            .bodytext
+            .buffer()
+            .set_text(model.document().text().as_str());
+    }
+
+    pub fn transmit(&self, tx: Sender<Action>) {
+        let window = imp::ApplicationWindow::from_instance(self);
+        window.bodytext.buffer().connect_changed(move |buffer| {
+            let start = buffer.start_iter();
+            let end = buffer.end_iter();
+            let value = buffer.text(&start, &end, true).to_string();
+            tx.send(DocumentChanged(value)).ok();
+        });
+    }
+
+    pub fn undo(&self) {
+        let window = imp::ApplicationWindow::from_instance(self);
+        window.bodytext.buffer().undo();
+    }
+
+    pub fn redo(&self) {
+        let window = imp::ApplicationWindow::from_instance(self);
+        window.bodytext.buffer().redo();
+    }
+
+    pub fn can_undo(&self) -> bool {
+        let window = imp::ApplicationWindow::from_instance(self);
+        window.bodytext.buffer().can_undo()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        let window = imp::ApplicationWindow::from_instance(self);
+        window.bodytext.buffer().can_redo()
     }
 }

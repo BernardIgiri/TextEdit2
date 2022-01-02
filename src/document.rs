@@ -107,42 +107,53 @@ impl<T: FileSystem> GenericDocument<T> {
         self.history.clear();
         self.history.push(String::new());
         self.file_path = None;
+        self.current_revision = 0;
     }
-    pub fn open(&mut self, path: Option<std::path::PathBuf>) {
+    pub fn open(&mut self, path: std::path::PathBuf) {
         self.reset();
-        self.file_path = path;
-        if let Some(p) = &self.file_path {
-            let mut input = String::new();
-            self.fs.read_to_string(p.clone(), &mut input);
-            self.history.clear();
-            self.history.push(input);
-        }
+        self.file_path = Some(path.clone());
+        let mut input = String::new();
+        self.fs.read_to_string(path, &mut input);
+        self.history.clear();
+        self.history.push(input);
     }
     pub fn save(&mut self, path: std::path::PathBuf) {
+        let contents = &self.text();
         self.file_path = Some(path.clone());
-        self.fs.write_string(path, &self.text());
+        self.fs.write_string(path, contents);
         self.history.remove(0);
-        self.history.insert(0, self.text())
+        self.history.insert(0, contents.clone())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::RefCell;
+    use std::rc::Rc;
 
-    #[derive(Default, Debug, Clone)]
+    #[derive(Debug, Clone)]
     struct MockFileSystem {
-        pub contents: String,
+        pub contents: Rc<RefCell<String>>,
+    }
+
+    impl Default for MockFileSystem {
+        fn default() -> Self {
+            Self {
+                contents: Rc::new(RefCell::new(String::new())),
+            }
+        }
     }
 
     impl FileSystem for MockFileSystem {
-        fn read_to_string(&mut self, path: std::path::PathBuf, contents: &mut String) {
-            contents.push_str(&self.contents);
-            contents.push_str(path.to_str().unwrap());
+        fn read_to_string(&mut self, _path: std::path::PathBuf, contents: &mut String) {
+            let data = self.contents.borrow();
+            contents.push_str(&data);
         }
-        fn write_string(&mut self, path: std::path::PathBuf, contents: &str) {
-            self.contents.push_str(contents);
-            self.contents.push_str(path.to_str().unwrap());
+        fn write_string(&mut self, _path: std::path::PathBuf, contents: &str) {
+            let mut data = self.contents.borrow_mut();
+            data.clear();
+            data.push_str(contents);
         }
     }
 
@@ -188,8 +199,6 @@ mod tests {
         let mut d = TestDocment::default();
         d.update("Mary had a little lamb");
         d.update("Mary had a little lamb, whose fleece was white as snow.");
-        assert_eq!(None, d.filepath(), "No file path by default");
-        assert_eq!(None, d.filename(), "No filename by default");
         assert!(d.can_undo(), "Undo should be possible");
         assert!(!d.can_redo(), "Redo should not be possible");
         assert!(d.is_dirty());
@@ -208,8 +217,6 @@ mod tests {
             d.update("Mary had a little lamb");
             d.update("Jack jumped over the bean stalk");
         }
-        assert_eq!(None, d.filepath(), "No file path by default");
-        assert_eq!(None, d.filename(), "No filename by default");
         assert!(d.can_undo(), "Undo should be possible");
         assert!(!d.can_redo(), "Redo should not be possible");
         assert!(d.is_dirty());
@@ -219,5 +226,381 @@ mod tests {
             d.text(),
             "Updated text is set"
         );
+    }
+
+    #[test]
+    fn test_one_undo() {
+        let mut d = TestDocment::default();
+        d.update("Mary had a little lamb");
+        d.undo();
+        assert!(!d.can_undo(), "Undo should not be possible");
+        assert!(d.can_redo(), "Redo should be possible");
+        assert!(!d.is_dirty());
+        assert_eq!("".to_string(), d.original(), "Original text is empty");
+        assert_eq!("".to_string(), d.text(), "Updated text is set");
+    }
+
+    #[test]
+    fn test_third_edit_undo() {
+        let mut d = TestDocment::default();
+        d.update("Mary had a little lamb");
+        d.update("Mary had a little lamb, little lamb");
+        d.update("Mary had a little lamb, little lamb, little lamb");
+        d.undo();
+        assert!(d.can_undo(), "Undo should be possible");
+        assert!(d.can_redo(), "Redo should be possible");
+        assert!(d.is_dirty());
+        assert_eq!("".to_string(), d.original(), "Original text is empty");
+        assert_eq!(
+            "Mary had a little lamb, little lamb".to_string(),
+            d.text(),
+            "Updated text is set"
+        );
+    }
+
+    #[test]
+    fn test_undo_twice() {
+        let mut d = TestDocment::default();
+        d.update("Mary had a little lamb");
+        d.update("Mary had a little lamb, little lamb");
+        d.update("Mary had a little lamb, little lamb, little lamb");
+        d.undo();
+        d.undo();
+        assert!(d.can_undo(), "Undo should be possible");
+        assert!(d.can_redo(), "Redo should be possible");
+        assert!(d.is_dirty());
+        assert_eq!("".to_string(), d.original(), "Original text is empty");
+        assert_eq!(
+            "Mary had a little lamb".to_string(),
+            d.text(),
+            "Updated text is set"
+        );
+    }
+
+    #[test]
+    fn test_undo_redo() {
+        let mut d = TestDocment::default();
+        d.update("Mary had a little lamb");
+        d.update("Mary had a little lamb, little lamb");
+        d.update("Mary had a little lamb, little lamb, little lamb");
+        d.undo();
+        d.undo();
+        d.redo();
+        assert!(d.can_undo(), "Undo should be possible");
+        assert!(d.can_redo(), "Redo should be possible");
+        assert!(d.is_dirty());
+        assert_eq!("".to_string(), d.original(), "Original text is empty");
+        assert_eq!(
+            "Mary had a little lamb, little lamb".to_string(),
+            d.text(),
+            "Updated text is set"
+        );
+    }
+
+    #[test]
+    fn test_undo_redo_3x() {
+        let mut d = TestDocment::default();
+        d.update("Mary had a little lamb");
+        d.update("Mary had a little lamb, little lamb");
+        d.update("Mary had a little lamb, little lamb, little lamb");
+        d.undo();
+        d.undo();
+        d.undo();
+        d.redo();
+        d.redo();
+        d.redo();
+        assert!(d.can_undo(), "Undo should be possible");
+        assert!(!d.can_redo(), "Redo should not be possible");
+        assert!(d.is_dirty());
+        assert_eq!("".to_string(), d.original(), "Original text is empty");
+        assert_eq!(
+            "Mary had a little lamb, little lamb, little lamb".to_string(),
+            d.text(),
+            "Updated text is set"
+        );
+    }
+
+    #[test]
+    fn test_reset() {
+        let mut d = TestDocment::default();
+        d.update("Mary had a little lamb");
+        d.update("Mary had a little lamb, little lamb");
+        d.update("Mary had a little lamb, little lamb, little lamb");
+        d.reset();
+        assert_eq!(None, d.filepath(), "No file path by default");
+        assert_eq!(None, d.filename(), "No filename by default");
+        assert!(!d.can_undo(), "No history means no undo by default");
+        assert!(!d.can_redo(), "No history means no redo by default");
+        assert!(!d.is_dirty());
+        assert_eq!("".to_string(), d.original(), "Original text is empty");
+        assert_eq!("".to_string(), d.text(), "Default text is empty");
+    }
+
+    #[test]
+    fn test_open() {
+        let fs = MockFileSystem::default();
+        let contents = fs.contents.clone();
+        let mut d = GenericDocument::new(fs);
+        {
+            let mut data = contents.borrow_mut();
+            data.push_str("There once was an old lady who swallowed a fly.");
+        }
+        d.update("Mary had a little lamb");
+        d.update("Mary had a little lamb, little lamb");
+        d.update("Mary had a little lamb, little lamb, little lamb");
+        d.open(std::path::PathBuf::from("/home/user/sometext.txt"));
+        assert_eq!(
+            Some(std::path::PathBuf::from("/home/user/sometext.txt")),
+            d.filepath(),
+            "File path should match opened file."
+        );
+        assert_eq!(
+            Some("sometext.txt".to_string()),
+            d.filename(),
+            "File name should match opened file"
+        );
+        assert!(!d.can_undo(), "No history means no undo by default");
+        assert!(!d.can_redo(), "No history means no redo by default");
+        assert!(!d.is_dirty());
+        assert_eq!(
+            "There once was an old lady who swallowed a fly.".to_string(),
+            d.original(),
+            "Original text matches file"
+        );
+        assert_eq!(
+            "There once was an old lady who swallowed a fly.".to_string(),
+            d.text(),
+            "Text matches file"
+        );
+    }
+
+    #[test]
+    fn test_open_update_undo_all() {
+        let fs = MockFileSystem::default();
+        let contents = fs.contents.clone();
+        let mut d = GenericDocument::new(fs);
+        {
+            let mut data = contents.borrow_mut();
+            data.push_str("There once was an old lady who swallowed a fly.");
+        }
+        d.open(std::path::PathBuf::from("/home/user/sometext.txt"));
+        d.update("Mary had a little lamb");
+        d.update("Mary had a little lamb, little lamb");
+        d.update("Mary had a little lamb, little lamb, little lamb");
+
+        assert_eq!(
+            "Mary had a little lamb, little lamb, little lamb".to_string(),
+            d.text(),
+            "Text matches update"
+        );
+
+        d.undo();
+        d.undo();
+        d.undo();
+
+        assert_eq!(
+            Some(std::path::PathBuf::from("/home/user/sometext.txt")),
+            d.filepath(),
+            "File path should match opened file."
+        );
+        assert_eq!(
+            Some("sometext.txt".to_string()),
+            d.filename(),
+            "File name should match opened file"
+        );
+        assert!(!d.can_undo());
+        assert!(d.can_redo());
+        assert!(!d.is_dirty());
+        assert_eq!(
+            "There once was an old lady who swallowed a fly.".to_string(),
+            d.original(),
+            "Original text matches file"
+        );
+        assert_eq!(
+            "There once was an old lady who swallowed a fly.".to_string(),
+            d.text(),
+            "Text matches file"
+        );
+    }
+
+    #[test]
+    fn test_open_undo() {
+        let fs = MockFileSystem::default();
+        let contents = fs.contents.clone();
+        let mut d = GenericDocument::new(fs);
+        {
+            let mut data = contents.borrow_mut();
+            data.push_str("There once was an old lady who swallowed a fly.");
+        }
+        d.update("Mary had a little lamb");
+        d.update("Mary had a little lamb, little lamb");
+        d.update("Mary had a little lamb, little lamb, little lamb");
+        d.open(std::path::PathBuf::from("/home/user/sometext.txt"));
+        d.update("Let's start over.");
+        d.update("Let's start over. THere");
+        d.undo();
+        assert_eq!(
+            Some(std::path::PathBuf::from("/home/user/sometext.txt")),
+            d.filepath(),
+            "File path should match opened file."
+        );
+        assert_eq!(
+            Some("sometext.txt".to_string()),
+            d.filename(),
+            "File name should match opened file"
+        );
+        assert!(d.can_undo());
+        assert!(d.can_redo());
+        assert!(d.is_dirty());
+        assert_eq!(
+            "There once was an old lady who swallowed a fly.".to_string(),
+            d.original(),
+            "Original text matches file"
+        );
+        assert_eq!(
+            "Let's start over.".to_string(),
+            d.text(),
+            "Text matches file"
+        );
+    }
+
+    #[test]
+    fn test_save() {
+        let fs = MockFileSystem::default();
+        let contents = fs.contents.clone();
+        let mut d = GenericDocument::new(fs);
+        {
+            let mut data = contents.borrow_mut();
+            data.push_str("There once was an old lady who swallowed a fly.");
+        }
+        d.update("Mary had a little lamb");
+        d.update("Mary had a little lamb, little lamb");
+        d.update("Mary had a little lamb, little lamb, little lamb");
+        d.save(std::path::PathBuf::from("/home/user/sometext.txt"));
+        assert_eq!(
+            Some(std::path::PathBuf::from("/home/user/sometext.txt")),
+            d.filepath(),
+            "File path should match saved file."
+        );
+        assert_eq!(
+            Some("sometext.txt".to_string()),
+            d.filename(),
+            "File name should match saved file"
+        );
+        assert!(d.can_undo());
+        assert!(!d.can_redo());
+        assert_eq!(
+            "Mary had a little lamb, little lamb, little lamb".to_string(),
+            d.original(),
+            "Original text matches saved data."
+        );
+        assert_eq!(
+            "Mary had a little lamb, little lamb, little lamb".to_string(),
+            d.text(),
+            "Text matches last update"
+        );
+        {
+            let data = contents.borrow().clone();
+            assert_eq!(
+                "Mary had a little lamb, little lamb, little lamb".to_string(),
+                data,
+                "File contents match saved data."
+            );
+        }
+        assert!(!d.is_dirty());
+    }
+
+    #[test]
+    fn test_save_and_update() {
+        let fs = MockFileSystem::default();
+        let contents = fs.contents.clone();
+        let mut d = GenericDocument::new(fs);
+        {
+            let mut data = contents.borrow_mut();
+            data.push_str("There once was an old lady who swallowed a fly.");
+        }
+        d.update("Mary had a little lamb");
+        d.update("Mary had a little lamb, little lamb");
+        d.update("Mary had a little lamb, little lamb, little lamb");
+        d.save(std::path::PathBuf::from("/home/user/sometext.txt"));
+        d.update("Mary had a little lamb, little lamb, lit");
+        d.update("Mary had a little lamb, little la");
+        d.update("Mary had a little lam");
+        d.undo();
+        assert_eq!(
+            Some(std::path::PathBuf::from("/home/user/sometext.txt")),
+            d.filepath(),
+            "File path should match saved file."
+        );
+        assert_eq!(
+            Some("sometext.txt".to_string()),
+            d.filename(),
+            "File name should match saved file"
+        );
+        assert!(d.can_undo());
+        assert!(d.can_redo());
+        assert_eq!(
+            "Mary had a little lamb, little lamb, little lamb".to_string(),
+            d.original(),
+            "Original text matches saved data."
+        );
+        assert_eq!(
+            "Mary had a little lamb, little la".to_string(),
+            d.text(),
+            "Text matches last update"
+        );
+        {
+            let data = contents.borrow().clone();
+            assert_eq!(
+                "Mary had a little lamb, little lamb, little lamb".to_string(),
+                data,
+                "File contents match saved data."
+            );
+        }
+        assert!(d.is_dirty());
+    }
+
+    #[test]
+    fn test_open_update_and_save() {
+        let fs = MockFileSystem::default();
+        let contents = fs.contents.clone();
+        let mut d = GenericDocument::new(fs);
+        {
+            let mut data = contents.borrow_mut();
+            data.push_str("There once was an old lady who swallowed a fly.");
+        }
+        d.open(std::path::PathBuf::from("/home/user/sometext.txt"));
+        d.update("Mary");
+        d.update("Mary had");
+        d.update("Mary had a");
+        d.undo();
+        d.save(std::path::PathBuf::from("/home/user/some-other-text.txt"));
+        assert_eq!(
+            Some(std::path::PathBuf::from("/home/user/some-other-text.txt")),
+            d.filepath(),
+            "File path should match saved file."
+        );
+        assert_eq!(
+            Some("some-other-text.txt".to_string()),
+            d.filename(),
+            "File name should match saved file"
+        );
+        assert!(d.can_undo());
+        assert!(d.can_redo());
+        assert_eq!(
+            "Mary had".to_string(),
+            d.original(),
+            "Original text matches saved data."
+        );
+        assert_eq!("Mary had".to_string(), d.text(), "Text matches last update");
+        {
+            let data = contents.borrow().clone();
+            assert_eq!(
+                "Mary had".to_string(),
+                data,
+                "File contents match saved data."
+            );
+        }
+        assert!(!d.is_dirty());
     }
 }
