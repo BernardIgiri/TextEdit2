@@ -7,7 +7,7 @@ use super::actions::Action;
 use super::actions::Action::DocumentChanged;
 use crate::glib::Sender;
 
-use super::application_model::ApplicationModel;
+use super::application_model::{ApplicationModel, Changes};
 use crate::application::Application;
 use crate::config::{APP_ID, PROFILE};
 
@@ -19,6 +19,10 @@ mod imp {
     #[derive(Debug, CompositeTemplate)]
     #[template(resource = "/com/bernardigiri/TextEdit2/ui/window.ui")]
     pub struct ApplicationWindow {
+        #[template_child]
+        pub title: TemplateChild<gtk::Label>,
+        #[template_child]
+        pub modified: TemplateChild<gtk::Label>,
         #[template_child]
         pub headerbar: TemplateChild<gtk::HeaderBar>,
         #[template_child]
@@ -33,6 +37,8 @@ mod imp {
     impl Default for ApplicationWindow {
         fn default() -> Self {
             Self {
+                title: TemplateChild::default(),
+                modified: TemplateChild::default(),
                 headerbar: TemplateChild::default(),
                 bodytext: TemplateChild::default(),
                 save_button: TemplateChild::default(),
@@ -128,23 +134,59 @@ impl ApplicationWindow {
         }
     }
 
-    pub fn update(&self, model: &ApplicationModel) {
-        debug!("GtkApplicationWindow<Application>::update");
+    pub fn update(&self, model: &ApplicationModel, changes: &Changes) {
+        debug!("GtkApplicationWindow<Application>::update {:?}", changes);
         let window = imp::ApplicationWindow::from_instance(self);
-        window
-            .bodytext
-            .buffer()
-            .set_text(model.document().text().as_str());
+        let document = model.document();
+        let modified = document.modified();
+        window.modified.set_visible(modified);
+        if changes.text {
+            window.bodytext.buffer().set_text(document.text().as_str());
+            debug!("GtkApplicationWindow<Application>::update m {}", modified);
+        }
+        if changes.filename {
+            match document.filename() {
+                Some(title) => window.title.set_text(title.as_str()),
+                None => window.title.set_text(""),
+            }
+        }
+    }
+
+    fn get_buffer_value(buffer: gtk::TextBuffer) -> String {
+        let start = buffer.start_iter();
+        let end = buffer.end_iter();
+        buffer.text(&start, &end, true).to_string()
     }
 
     pub fn transmit(&self, tx: Sender<Action>) {
         let window = imp::ApplicationWindow::from_instance(self);
-        window.bodytext.buffer().connect_changed(move |buffer| {
-            let start = buffer.start_iter();
-            let end = buffer.end_iter();
-            let value = buffer.text(&start, &end, true).to_string();
-            tx.send(DocumentChanged(value)).ok();
-        });
+        let buffer = window.bodytext.buffer();
+        let tx_local = tx.clone();
+        buffer
+            .connect("insert-text", true, move |args| {
+                let buffer: gtk::TextBuffer = args[0].get().unwrap();
+                let value = Self::get_buffer_value(buffer);
+                debug!(
+                    "GtkApplicationWindow<Application>::transmit insert-text {}",
+                    value
+                );
+                tx_local.send(DocumentChanged(value)).ok();
+                None
+            })
+            .ok();
+        let tx_local = tx;
+        buffer
+            .connect("delete-range", true, move |args| {
+                let buffer: gtk::TextBuffer = args[0].get().unwrap();
+                let value = Self::get_buffer_value(buffer);
+                debug!(
+                    "GtkApplicationWindow<Application>::transmit delete-range {}",
+                    value
+                );
+                tx_local.send(DocumentChanged(value)).ok();
+                None
+            })
+            .ok();
     }
 
     pub fn undo(&self) {

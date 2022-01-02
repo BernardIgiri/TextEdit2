@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use super::actions::Action;
 use super::actions::Action::*;
-use super::application_model::ApplicationModel;
+use super::application_model::{ApplicationModel, Changes};
 use super::config::{APP_ID, PKGDATADIR, PROFILE, VERSION};
 use super::window::ApplicationWindow;
 use crate::glib::Sender;
@@ -81,13 +81,11 @@ mod imp {
             let local_app = app.clone();
 
             rx.attach(None, move |action| {
-                let update_view = {
+                let changes = {
                     let mut model = model_rc.borrow_mut();
                     model.update(action)
                 };
-                if update_view {
-                    local_app.update();
-                }
+                local_app.update(&changes);
                 Continue(true)
             });
         }
@@ -135,15 +133,15 @@ impl Application {
         window.transmit(tx);
     }
 
-    fn update(&self) {
+    fn update(&self, changes: &Changes) {
         debug!("GtkApplication<Application>::update");
         let model_ref = self.model();
         let model = model_ref.borrow();
         let window = self.main_window();
-        window.update(&model);
         let imp = imp::Application::from_instance(self);
         imp.undo_action.set_enabled(window.can_undo());
         imp.redo_action.set_enabled(window.can_redo());
+        window.update(&model, changes);
     }
 
     fn model(&self) -> Rc<RefCell<ApplicationModel>> {

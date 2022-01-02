@@ -68,12 +68,11 @@ impl<T: FileSystem> GenericDocument<T> {
     pub fn original(&self) -> &String {
         &self.original
     }
-    pub fn is_dirty(&self) -> bool {
+    pub fn modified(&self) -> bool {
         !self.text().eq(self.original())
     }
     pub fn update(&mut self, value: &str) {
-        self.text.clear();
-        self.text.push_str(value);
+        self.text = value.to_string()
     }
     pub fn reset(&mut self) {
         self.text.clear();
@@ -139,7 +138,7 @@ mod tests {
         let d = TestDocment::default();
         assert_eq!(None, d.filepath(), "No file path by default");
         assert_eq!(None, d.filename(), "No filename by default");
-        assert!(!d.is_dirty());
+        assert!(!d.modified());
         let original = String::new();
         let text = String::new();
         assert_eq!(&original, d.original(), "Original text is empty");
@@ -152,7 +151,7 @@ mod tests {
         d.update("Mary had a little lamb");
         assert_eq!(None, d.filepath(), "No file path by default");
         assert_eq!(None, d.filename(), "No filename by default");
-        assert!(d.is_dirty());
+        assert!(d.modified());
         let original = String::new();
         let text = String::from("Mary had a little lamb");
         assert_eq!(&original, d.original(), "Original text is empty");
@@ -164,7 +163,7 @@ mod tests {
         let mut d = TestDocment::default();
         d.update("Mary had a little lamb");
         d.update("Mary had a little lamb, whose fleece was white as snow.");
-        assert!(d.is_dirty());
+        assert!(d.modified());
         let original = String::new();
         let text = String::from("Mary had a little lamb, whose fleece was white as snow.");
         assert_eq!(&original, d.original(), "Original text is empty");
@@ -178,7 +177,7 @@ mod tests {
             d.update("Mary had a little lamb");
             d.update("Jack jumped over the bean stalk");
         }
-        assert!(d.is_dirty());
+        assert!(d.modified());
         let original = String::new();
         let text = String::from("Jack jumped over the bean stalk");
         assert_eq!(&original, d.original(), "Original text is empty");
@@ -194,7 +193,7 @@ mod tests {
         d.reset();
         assert_eq!(None, d.filepath(), "No file path by default");
         assert_eq!(None, d.filename(), "No filename by default");
-        assert!(!d.is_dirty());
+        assert!(!d.modified());
         let original = String::new();
         let text = String::new();
         assert_eq!(&original, d.original(), "Original text is empty");
@@ -224,7 +223,7 @@ mod tests {
             d.filename(),
             "File name should match opened file"
         );
-        assert!(!d.is_dirty());
+        assert!(!d.modified());
         let original = String::from("There once was an old lady who swallowed a fly.");
         let text = String::from("There once was an old lady who swallowed a fly.");
         assert_eq!(&original, d.original(), "Original text matches file");
@@ -258,7 +257,7 @@ mod tests {
             d.filename(),
             "File name should match opened file"
         );
-        assert!(d.is_dirty());
+        assert!(d.modified());
         assert_eq!(&original, d.original(), "Original text matches file");
         assert_eq!(&text, d.text(), "Text matches update");
     }
@@ -293,7 +292,7 @@ mod tests {
             let data = contents.borrow().clone();
             assert_eq!(&text, &data, "File contents match saved data.");
         }
-        assert!(!d.is_dirty());
+        assert!(!d.modified());
     }
 
     #[test]
@@ -329,7 +328,7 @@ mod tests {
             let data = contents.borrow().clone();
             assert_eq!(&original, &data, "File contents match saved data.");
         }
-        assert!(d.is_dirty());
+        assert!(d.modified());
     }
 
     #[test]
@@ -363,6 +362,6 @@ mod tests {
             let data = contents.borrow().clone();
             assert_eq!(&text, &data, "File contents match saved data.");
         }
-        assert!(!d.is_dirty());
+        assert!(!d.modified());
     }
 }
