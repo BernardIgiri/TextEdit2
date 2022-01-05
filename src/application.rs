@@ -274,6 +274,18 @@ impl Application {
         }
     }
 
+    fn add_file_chooser_filters(file_chooser: &gtk::FileChooserDialog) {
+        let filter = gtk::FileFilter::new();
+        filter.add_mime_type("text/plain");
+        filter.set_name(Some(&gettext("Text Files")));
+        file_chooser.add_filter(&filter);
+
+        let filter = gtk::FileFilter::new();
+        filter.add_pattern("*");
+        filter.set_name(Some(&gettext("All Files")));
+        file_chooser.add_filter(&filter);
+    }
+
     fn save_file_as(&self) {
         debug!("GtkApplication<Application>::save_file_as");
         let file_chooser = gtk::FileChooserDialog::new(
@@ -285,6 +297,7 @@ impl Application {
                 (&gettext("Cancel"), gtk::ResponseType::Cancel),
             ],
         );
+        Self::add_file_chooser_filters(&file_chooser);
 
         let model_rc = self.model();
 
@@ -314,6 +327,7 @@ impl Application {
                 (&gettext("Cancel"), gtk::ResponseType::Cancel),
             ],
         );
+        Self::add_file_chooser_filters(&file_chooser);
 
         let model_rc = self.model();
 
