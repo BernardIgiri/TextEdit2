@@ -1,3 +1,4 @@
+use gettextrs::*;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gio, glib};
@@ -7,7 +8,7 @@ use super::actions::Action;
 use super::actions::Action::DocumentChanged;
 use crate::glib::Sender;
 
-use super::application_model::{ApplicationModel, Changes};
+use super::application_model::{ApplicationModel, Changes, StatusMessage};
 use crate::application::Application;
 use crate::config::{APP_ID, PROFILE};
 
@@ -32,6 +33,8 @@ mod imp {
         pub save_button: TemplateChild<gtk::Button>,
         #[template_child]
         pub open_button: TemplateChild<gtk::Button>,
+        #[template_child]
+        pub status_bar: TemplateChild<gtk::Label>,
     }
 
     impl Default for ApplicationWindow {
@@ -43,6 +46,7 @@ mod imp {
                 bodytext: TemplateChild::default(),
                 save_button: TemplateChild::default(),
                 open_button: TemplateChild::default(),
+                status_bar: TemplateChild::default(),
                 settings: gio::Settings::new(APP_ID),
             }
         }
@@ -149,6 +153,40 @@ impl ApplicationWindow {
                 Some(title) => window.title.set_text(title.as_str()),
                 None => window.title.set_text(""),
             }
+        }
+        if changes.status_message {
+            let text = match model.status_message() {
+                StatusMessage::None => String::new(),
+                StatusMessage::SavingFile => gettext("Saving file..."),
+                StatusMessage::OpeningFile => gettext("Opening file..."),
+                StatusMessage::FileSaveFinished(Ok(())) => format!(
+                    "{}: \"{}\"",
+                    gettext("File saved to"),
+                    Self::filepath_string(model)
+                ),
+                StatusMessage::FileOpenFinished(Ok(())) => String::new(),
+                StatusMessage::FileSaveFinished(Err(_)) => format!(
+                    "{}: \"{}\"!",
+                    gettext("Could not save file"),
+                    Self::filepath_string(model)
+                ),
+                StatusMessage::FileOpenFinished(Err(_)) => format!(
+                    "{}: \"{}\"!",
+                    gettext("Could not open file"),
+                    Self::filepath_string(model)
+                ),
+            };
+            window.status_bar.set_text(text.as_str());
+        }
+    }
+
+    fn filepath_string(model: &ApplicationModel) -> String {
+        match model.document().filepath() {
+            Some(path) => match path.into_os_string().into_string() {
+                Ok(s) => s,
+                Err(_) => model.document().filename().unwrap_or_else(String::new),
+            },
+            None => String::new(),
         }
     }
 
