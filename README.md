@@ -1,6 +1,6 @@
 # TextEdit 2
 
-[TextEdit](https://github/bernardigiri/TextEdit) reimplemented in GTK4-rs
+[TextEdit](https://github.com/BernardIgiri/TextEdit) reimplemented in GTK4-rs
 
 This is a simple GUI text editor demonstrating application development in GTK4-rs using the Rust programming language.
 
